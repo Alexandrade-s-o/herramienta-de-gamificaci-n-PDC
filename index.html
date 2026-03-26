@@ -401,12 +401,15 @@
 
   // ── INIT ──────────────────────────────────────────
   async function initDb() {
-    // 1. Obtener estado inicial (cartas y si la partida está activa)
-    const { data: st, error: stErr } = await supabase.from('game_state').select('*').eq('id', 1).single();
-    if (st) {
-      gameActive = (st.status === 'playing');
-      cards = st.cards || [];
-    }
+    try {
+      // 1. Obtener estado inicial (cartas y si la partida está activa)
+      const { data: st, error: stErr } = await supabase.from('game_state').select('*').eq('id', 1).single();
+      if (stErr) console.warn("Supabase (game_state):", stErr.message);
+      if (st) {
+        gameActive = (st.status === 'playing');
+        cards = st.cards || [];
+      }
+    } catch (err) { console.error("Error initDb:", err); }
     
     // Default si fallara (o estuviera vacío porque no se ha creado)
     if (!cards || !cards.length) {
@@ -419,32 +422,30 @@
       ];
     }
     
-    // Suscribirse a cambios en tiempo real en la tabla game_state
-    supabase
-      .channel('public:game_state')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state' }, payload => {
-        const newData = payload.new;
-        cards = newData.cards || cards;
-        const newActive = (newData.status === 'playing');
-        
-        // Si el admin cambió el estado o el usuario es jugador
-        if (newActive !== gameActive) {
-          gameActive = newActive;
-          if (isAdmin) {
-             document.getElementById('startBtn').innerText = gameActive ? '▶ Reiniciar Partida' : '▶ Iniciar Partida';
-             setStatusPill(gameActive);
+    // Suscribirse a cambios en tiempo real
+    try {
+      supabase
+        .channel('public:game_state')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state' }, payload => {
+          const newData = payload.new;
+          cards = newData.cards || cards;
+          const newActive = (newData.status === 'playing');
+          
+          if (newActive !== gameActive) {
+            gameActive = newActive;
+            if (isAdmin) {
+               document.getElementById('startBtn').innerText = gameActive ? '▶ Reiniciar Partida' : '▶ Iniciar Partida';
+               setStatusPill(gameActive);
+            }
+            showJugadorView();
           }
-          showJugadorView(); // Inicia o detiene el tablero a todos
-        }
-        
-        if (isAdmin) renderPairs(); // Si editaron las cartas, refrescar lista
-      })
-      .subscribe();
+          if (isAdmin) renderPairs();
+        })
+        .subscribe();
+    } catch (e) { console.error("Error realtime:", e); }
 
-    // Obtener ranking inicial
+    // Obtener ranking inicial y renderizar VISTA SIEMPRE AL FINAL
     await fetchRanking();
-
-    // Activar vista adecuada
     renderPairs();
     showJugadorView();
   }
@@ -452,9 +453,12 @@
   initDb();
 
   async function fetchRanking() {
-    const { data } = await supabase.from('ranking').select('*').order('puntaje', { ascending: false }).order('segundos', { ascending: true }).limit(30);
-    if (data) ranking = data;
-    if (isAdmin) renderRanking();
+    try {
+      const { data, error } = await supabase.from('ranking').select('*').order('puntaje', { ascending: false }).order('segundos', { ascending: true }).limit(30);
+      if (error) console.warn("Supabase (ranking):", error.message);
+      if (data) ranking = data;
+      if (isAdmin) renderRanking();
+    } catch (err) { console.error("Error fetchRanking:", err); }
   }
 
   // ── VISTA JUGADOR (sin partida activa) ────────────
