@@ -237,6 +237,26 @@
     .login-modal { max-width:320px; }
     .login-modal h2 { font-size:18px; margin-bottom:6px; }
     .login-modal p { font-size:12px; color:var(--gray); margin-bottom:18px; }
+
+    /* ══ RESPONSIVE (MÓVIL) ═══════════════════════ */
+    @media (max-width: 640px) {
+      .header-inner { padding:0 16px; flex-direction:column; gap:12px; align-items:flex-start; padding-bottom:10px; }
+      .header-right { width:100%; justify-content:space-between; }
+      .brand { padding: 12px 0 0 0; }
+      .nav-tab { padding: 10px 14px; font-size: 11px; }
+      .page { padding:0 16px; margin: 16px auto; }
+      .stats { grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:16px; }
+      .board { grid-template-columns:repeat(2, 1fr); gap:10px; }
+      .admin-panel { padding: 16px; }
+      .admin-actions { flex-direction: column; align-items: stretch; }
+      .btn { justify-content: center; }
+      .pair-row-body { grid-template-columns:1fr; }
+      .pair-side:first-child { border-right:none; border-bottom:1px solid var(--border); }
+      .rank-table th, .rank-table td { padding: 10px 8px; font-size: 10px; }
+      .score-cell { font-size: 12px; }
+      .card-text { font-size: 10px; padding: 8px; }
+      .waiting-screen h2 { font-size: 20px; }
+    }
   </style>
 </head>
 <body>
