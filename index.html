@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Plataforma de Gamificación</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -385,6 +386,11 @@
 
   const ADMIN_PASSWORD = 'admin123';  // ← Cambia esta contraseña
 
+  // ── INICIALIZAR SUPABASE ──────────────────────────
+  const supabaseUrl = 'https://blejocgxhtpbohcsxnbo.supabase.co';
+  const supabaseKey = 'sb_publishable_rr7y5gxpbUbVm8q5AX4gtA_p9VNgGS5';
+  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
   let cards   = [];
   let ranking = [];
   let gameCards = [], flipped = [];
@@ -394,27 +400,62 @@
   let gameActive = false;   // ¿hay partida iniciada por el admin?
 
   // ── INIT ──────────────────────────────────────────
-  (function () {
-    // 🔥 FORZAR BORRADO para limpiar basura anterior:
-    localStorage.removeItem('gam_cards');
+  async function initDb() {
+    // 1. Obtener estado inicial (cartas y si la partida está activa)
+    const { data: st, error: stErr } = await supabase.from('game_state').select('*').eq('id', 1).single();
+    if (st) {
+      gameActive = (st.status === 'playing');
+      cards = st.cards || [];
+    }
+    
+    // Default si fallara (o estuviera vacío porque no se ha creado)
+    if (!cards || !cards.length) {
+      cards = [
+        {
+          a: "1. ¿Para qué deben implementar las buenas prácticas agrícolas en sus unidades productivas?",
+          b: "A. Mitigar las afectaciones en la salud de los trabajadores, asegurar la inocuidad de los alimentos y proteger el ambiente.",
+          imgA:'personajes pdc.png', imgB:'Bandido 1.png'
+        }
+      ];
+    }
+    
+    // Suscribirse a cambios en tiempo real en la tabla game_state
+    supabase
+      .channel('public:game_state')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state' }, payload => {
+        const newData = payload.new;
+        cards = newData.cards || cards;
+        const newActive = (newData.status === 'playing');
+        
+        // Si el admin cambió el estado o el usuario es jugador
+        if (newActive !== gameActive) {
+          gameActive = newActive;
+          if (isAdmin) {
+             document.getElementById('startBtn').innerText = gameActive ? '▶ Reiniciar Partida' : '▶ Iniciar Partida';
+             setStatusPill(gameActive);
+          }
+          showJugadorView(); // Inicia o detiene el tablero a todos
+        }
+        
+        if (isAdmin) renderPairs(); // Si editaron las cartas, refrescar lista
+      })
+      .subscribe();
 
-    try { cards   = JSON.parse(localStorage.getItem('gam_cards') || 'null'); } catch(e){}
-    try { ranking = JSON.parse(localStorage.getItem('gam_ranking') || '[]'); } catch(e){}
-    if (!cards) cards = [
-      {
-        a: "1. Teniendo en cuenta las actividades productivas de las familias participantes del proyecto...\n¿Para qué deben implementar las buenas prácticas agrícolas en sus unidades productivas?",
-        b: "A. Identificar los subproductos generados en cada etapa de la producción.\n\nB. Mitigar las afectaciones en la salud de los trabajadores, asegurar la inocuidad de los alimentos y proteger el ambiente.\n\nC. Mantener buenas relaciones con las empresas que les compran las cosechas.",
-        imgA:'personajes pdc.png', imgB:'Bandido 1.png'
-      },
-      {
-        a: "2. Con el fin de obtener productos sanos y seguros para los consumidores...\n¿qué deben hacer las familias productoras de la Junta de Acción Comunal de San Isidro?",
-        b: "A) Capacitarse sobre higiene y control de salud... llevar registros actualizados desde la planificación hasta la poscosecha.\n\nB) No tener en cuenta las recomendaciones de la secretaría de agricultura...\n\nC) Conversar con los vecinos a ver lo que hacen en sus cultivos.",
-        imgA:'personajes 2 pdc.png', imgB:'Merlin 1.png'
-      },
-    ];
+    // Obtener ranking inicial
+    await fetchRanking();
+
+    // Activar vista adecuada
     renderPairs();
     showJugadorView();
-  })();
+  }
+  
+  initDb();
+
+  async function fetchRanking() {
+    const { data } = await supabase.from('ranking').select('*').order('puntaje', { ascending: false }).order('segundos', { ascending: true }).limit(30);
+    if (data) ranking = data;
+    if (isAdmin) renderRanking();
+  }
 
   // ── VISTA JUGADOR (sin partida activa) ────────────
   function showJugadorView() {
@@ -489,24 +530,15 @@
   }
 
   // ── CONTROL ADMIN ─────────────────────────────────
-  function adminStartGame() {
+  async function adminStartGame() {
     if (!cards.length) { alert('No hay cartas configuradas. Ve a Editar Cartas.'); return; }
-    gameActive = true;
-    setStatusPill(true);
-    document.getElementById('startBtn').innerText = '▶ Reiniciar Partida';
-    buildBoard();
-    document.getElementById('waitingScreen').style.display = 'none';
-    document.getElementById('gameArea').style.display = 'block';
+    await supabase.from('game_state').update({ status: 'playing', cards: cards }).eq('id', 1);
   }
 
-  function adminStopGame() {
+  async function adminStopGame() {
     clearInterval(timer);
-    gameActive = false; playing = false;
-    setStatusPill(false);
-    document.getElementById('startBtn').innerText = '▶ Iniciar Partida';
-    document.getElementById('waitingScreen').style.display = 'flex';
-    document.getElementById('gameArea').style.display = 'none';
-    document.getElementById('statusTxt').innerText = 'En espera';
+    playing = false;
+    await supabase.from('game_state').update({ status: 'waiting' }).eq('id', 1);
   }
 
   function adminResetGame() {
@@ -594,14 +626,17 @@
     document.getElementById('winModal').style.display = 'flex';
   }
 
-  function submitWin() {
+  async function submitWin() {
     const n = document.getElementById('winName').value.trim() || 'Anónimo';
-    ranking.push({ nombre:n, movimientos:moves, segundos:seconds, puntaje:winScore });
-    ranking.sort((a,b) => b.puntaje-a.puntaje || a.segundos-b.segundos);
-    if (ranking.length > 30) ranking.length = 30;
-    localStorage.setItem('gam_ranking', JSON.stringify(ranking));
+    const finalScore = { nombre:n, movimientos:moves, segundos:seconds, puntaje:winScore };
+    
+    // Insertar en Supabase
     document.getElementById('winModal').style.display = 'none';
     document.getElementById('winName').value = '';
+    
+    await supabase.from('ranking').insert([finalScore]);
+    await fetchRanking(); // recargar
+    
     // Reiniciar tablero para siguiente jugador
     buildBoard();
   }
@@ -703,11 +738,11 @@
     setTimeout(()=>window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}),60);
   }
 
-  function savePairs() {
+  async function savePairs() {
     try {
-      localStorage.setItem('gam_cards', JSON.stringify(cards));
-      alert('✅ Cartas guardadas correctamente.');
-    } catch { alert('❌ Imágenes muy pesadas. Usa fotos más pequeñas.'); }
+      await supabase.from('game_state').update({ cards: cards }).eq('id', 1);
+      alert('✅ Cartas guardadas en la nube.');
+    } catch { alert('❌ Error al guardar.'); }
   }
 
   // ── RANKING (solo admin) ───────────────────────────
@@ -728,9 +763,11 @@
       </tr>`).join('');
   }
 
-  function clearRanking() {
-    if (!confirm('¿Borrar todo el ranking?')) return;
-    ranking=[]; localStorage.removeItem('gam_ranking'); renderRanking();
+  async function clearRanking() {
+    if (!confirm('¿Borrar todo el ranking? Esta acción no se puede deshacer.')) return;
+    const { error } = await supabase.from('ranking').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+    ranking=[];
+    renderRanking();
   }
 </script>
 </body>
