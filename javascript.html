@@ -1,0 +1,231 @@
+<script>
+  // ====================================================
+  //  JUEGO DE MEMORIA — JavaScript Frontend
+  //  (Este archivo se sirve como include en index.html)
+  // ====================================================
+
+  let globalCards = [];
+  let gameCards = [];
+  let flippedCards = [];
+  let moves = 0, matches = 0, seconds = 0;
+  let timer = null, isPlaying = false;
+
+  // ─── INICIALIZACIÓN ──────────────────────────────────
+  window.onload = function () {
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function (cards) {
+        globalCards = cards;
+        renderEditList();
+        iniciarJuego();
+        loadRanking();
+      })
+      .withFailureHandler(function (err) {
+        alert('Error cargando cartas: ' + err);
+        showLoader(false);
+      })
+      .getCards();
+  };
+
+  function showLoader(show) {
+    document.getElementById('loader').style.display = show ? 'flex' : 'none';
+  }
+
+  function switchTab(tabId, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.content-section').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+  }
+
+  // ─── LÓGICA DEL JUEGO ────────────────────────────────
+  function iniciarJuego() {
+    clearInterval(timer);
+    moves = 0; matches = 0; seconds = 0; isPlaying = true;
+    document.getElementById('movesStr').innerText = 0;
+    document.getElementById('timeStr').innerText = '0s';
+    document.getElementById('pairsStr').innerText = '0/' + globalCards.length;
+    document.getElementById('scoreStr').innerText = '-';
+
+    // Crear dos cartas por par (A y B) y barajar
+    gameCards = [];
+    globalCards.forEach((pair, index) => {
+      gameCards.push({ id: index, type: 'A', text: pair.a, img: pair.imgA });
+      gameCards.push({ id: index, type: 'B', text: pair.b, img: pair.imgB });
+    });
+    gameCards.sort(() => Math.random() - 0.5);
+
+    const board = document.getElementById('gameBoard');
+    board.innerHTML = '';
+    gameCards.forEach((card, i) => {
+      let cardEl = document.createElement('div');
+      cardEl.className = 'card';
+      cardEl.dataset.index = i;
+      cardEl.onclick = () => flipCard(cardEl, card);
+
+      let imgHtml = card.img ? `<img src="${card.img}" alt="Imagen">` : '';
+      let textHtml = card.text ? `<div>${card.text}</div>` : '';
+
+      cardEl.innerHTML = `
+        <div class="card-face card-back">⊞</div>
+        <div class="card-face card-front">
+          ${imgHtml}
+          ${textHtml}
+        </div>`;
+      board.appendChild(cardEl);
+    });
+
+    timer = setInterval(() => {
+      if (isPlaying) {
+        seconds++;
+        document.getElementById('timeStr').innerText = seconds + 's';
+      }
+    }, 1000);
+
+    showLoader(false);
+  }
+
+  function flipCard(cardEl, cardData) {
+    if (!isPlaying || cardEl.classList.contains('flipped') || flippedCards.length >= 2) return;
+    cardEl.classList.add('flipped');
+    flippedCards.push({ el: cardEl, data: cardData });
+    if (flippedCards.length === 2) {
+      moves++;
+      document.getElementById('movesStr').innerText = moves;
+      setTimeout(checkMatch, 1000);
+    }
+  }
+
+  function checkMatch() {
+    let c1 = flippedCards[0], c2 = flippedCards[1];
+    if (c1.data.id === c2.data.id && c1.data.type !== c2.data.type) {
+      matches++;
+      document.getElementById('pairsStr').innerText = matches + '/' + globalCards.length;
+      if (matches === globalCards.length) endWin();
+    } else {
+      c1.el.classList.remove('flipped');
+      c2.el.classList.remove('flipped');
+    }
+    flippedCards = [];
+  }
+
+  function endWin() {
+    isPlaying = false;
+    clearInterval(timer);
+    let puntaje = Math.max(100 - (moves * 2) - seconds, 10);
+    document.getElementById('scoreStr').innerText = puntaje;
+    let nombre = prompt('¡Ganaste! Ingresa tu nombre para el ranking:');
+    if (nombre) {
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(function () {
+          loadRanking();
+          document.querySelectorAll('.tab')[2].click();
+          showLoader(false);
+        })
+        .saveResult(nombre, moves, seconds, puntaje);
+    }
+  }
+
+  // ─── EDICIÓN DE CARTAS ────────────────────────────────
+  function renderEditList() {
+    const list = document.getElementById('cardsList');
+    list.innerHTML = '';
+    globalCards.forEach((pair, idx) => list.appendChild(createPairRow(pair, idx)));
+  }
+
+  function addPairRow() {
+    globalCards.push({ a: '', b: '', imgA: '', imgB: '' });
+    renderEditList();
+  }
+
+  function createPairRow(pair, index) {
+    let row = document.createElement('div');
+    row.className = 'pair-row';
+
+    let inputA = document.createElement('input');
+    inputA.type = 'text'; inputA.placeholder = 'Concepto A'; inputA.value = pair.a;
+    inputA.onchange = e => globalCards[index].a = e.target.value;
+
+    let btnImgA = document.createElement('div');
+    btnImgA.className = 'upload-btn';
+    btnImgA.innerText = pair.imgA ? '✓ Img A' : '+ Img A';
+    btnImgA.onclick = () => triggerUpload(index, 'imgA', btnImgA);
+
+    let inputB = document.createElement('input');
+    inputB.type = 'text'; inputB.placeholder = 'Concepto B'; inputB.value = pair.b;
+    inputB.onchange = e => globalCards[index].b = e.target.value;
+
+    let btnImgB = document.createElement('div');
+    btnImgB.className = 'upload-btn';
+    btnImgB.innerText = pair.imgB ? '✓ Img B' : '+ Img B';
+    btnImgB.onclick = () => triggerUpload(index, 'imgB', btnImgB);
+
+    let btnDel = document.createElement('button');
+    btnDel.className = 'remove-btn'; btnDel.innerText = 'X';
+    btnDel.onclick = () => { globalCards.splice(index, 1); renderEditList(); };
+
+    row.append(inputA, btnImgA, inputB, btnImgB, btnDel);
+    return row;
+  }
+
+  // ─── SUBIDA DE IMÁGENES (sin base64) ─────────────────
+  let currentUploadIndex = -1;
+  let currentUploadField = '';
+  let currentUploadBtn = null;
+
+  document.getElementById('hiddenFileInput').addEventListener('change', function () {
+    if (!this.files.length) return;
+    showLoader(true);
+    const form = document.getElementById('hiddenUploadForm');
+    google.script.run
+      .withSuccessHandler(function (url) {
+        globalCards[currentUploadIndex][currentUploadField] = url;
+        currentUploadBtn.innerText = '✓ Ok';
+        currentUploadBtn.style.background = '#d4edda';
+        showLoader(false);
+      })
+      .withFailureHandler(function (err) {
+        alert('Error al subir imagen: ' + err);
+        showLoader(false);
+      })
+      .uploadImageForm(form);
+  });
+
+  function triggerUpload(index, field, btnEl) {
+    currentUploadIndex = index;
+    currentUploadField = field;
+    currentUploadBtn = btnEl;
+    document.getElementById('hiddenFileInput').click();
+  }
+
+  function saveCardsData() {
+    showLoader(true);
+    google.script.run
+      .withSuccessHandler(function () {
+        iniciarJuego();
+        document.querySelectorAll('.tab')[0].click();
+      })
+      .saveCards(globalCards);
+  }
+
+  // ─── RANKING ─────────────────────────────────────────
+  function loadRanking() {
+    google.script.run
+      .withSuccessHandler(function (data) {
+        let body = document.getElementById('rankingBody');
+        body.innerHTML = '';
+        data.forEach((r, i) => {
+          let tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${i + 1}</td>
+            <td><strong>${r.nombre}</strong></td>
+            <td>${r.movimientos}</td>
+            <td>${r.segundos}</td>
+            <td style="color:var(--success);font-weight:bold;">${r.puntaje}</td>`;
+          body.appendChild(tr);
+        });
+      })
+      .getRanking();
+  }
+</script>

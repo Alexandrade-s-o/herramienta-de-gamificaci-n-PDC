@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plataforma de Gamificación</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      --blue:   #1565C0;
+      --blue-h: #0D47A1;
+      --red:    #C62828;
+      --green:  #2E7D32;
+      --bg:     #F0F2F5;
+      --white:  #FFFFFF;
+      --gray:   #90A4AE;
+      --dark:   #263238;
+      --border: #CFD8DC;
+    }
+    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--dark); min-height:100vh; }
+
+    /* ══ HEADER ══════════════════════════════════ */
+    header { background:var(--blue); position:relative; }
+    .header-inner {
+      max-width:1060px; margin:0 auto; padding:0 24px;
+      display:flex; align-items:stretch; justify-content:space-between;
+    }
+    .brand { display:flex; align-items:center; gap:12px; padding:16px 0; cursor:pointer; }
+    .brand-logo {
+      width:42px; height:42px; background:var(--white); border-radius:8px;
+      display:flex; align-items:center; justify-content:center; font-size:20px;
+    }
+    .brand-copy h1 { font-size:16px; font-weight:800; color:var(--white); }
+    .brand-copy p  { font-size:10px; font-weight:600; color:rgba(255,255,255,.5); text-transform:uppercase; letter-spacing:.9px; margin-top:2px; }
+    .header-right { display:flex; align-items:center; gap:12px; }
+
+    /* Pill de estado (para admin) */
+    .status-pill {
+      padding:6px 14px; border-radius:30px; font-size:11px; font-weight:700;
+      border:none; cursor:default; letter-spacing:.4px;
+    }
+    .pill-on  { background:var(--green); color:#fff; }
+    .pill-off { background:rgba(255,255,255,.15); color:rgba(255,255,255,.7); }
+
+    /* Botón admin en header */
+    #adminBtn {
+      background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
+      color:rgba(255,255,255,.7); padding:7px 14px; border-radius:5px;
+      font-size:11px; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;
+      transition:.15s;
+    }
+    #adminBtn:hover { background:rgba(255,255,255,.22); color:#fff; }
+    #adminBtn.active { background:var(--white); color:var(--blue); }
+
+    /* Nav tabs (solo admin ve editar/ranking) */
+    nav { display:flex; align-items:flex-end; }
+    .nav-tab {
+      padding:13px 18px; font-size:12px; font-weight:700;
+      color:rgba(255,255,255,.6); cursor:pointer;
+      border-bottom:3px solid transparent; transition:.15s;
+    }
+    .nav-tab:hover { color:#fff; }
+    .nav-tab.active { color:#fff; border-bottom-color:#fff; background:rgba(255,255,255,.08); }
+
+    /* ══ PAGE ════════════════════════════════════ */
+    .page { max-width:1060px; margin:28px auto; padding:0 24px; }
+    .section { display:none; }
+    .section.active { display:block; }
+
+    /* ══ STATS ═══════════════════════════════════ */
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
+    .stat { background:var(--white); border:1px solid var(--border); border-top:4px solid var(--blue); border-radius:6px; padding:14px; text-align:center; }
+    .stat.r { border-top-color:var(--red); }
+    .stat.g { border-top-color:var(--green); }
+    .stat-val { font-size:26px; font-weight:800; color:var(--dark); }
+    .stat-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.9px; color:var(--gray); margin-top:3px; }
+
+    /* ══ PANTALLA DE ESPERA (jugadores) ══════════ */
+    .waiting-screen {
+      text-align:center; padding:80px 20px;
+      display:flex; flex-direction:column; align-items:center; gap:20px;
+    }
+    .waiting-icon { font-size:64px; }
+    .waiting-screen h2 { font-size:24px; font-weight:800; color:var(--dark); }
+    .waiting-screen p  { font-size:14px; color:var(--gray); max-width:360px; }
+    .pulse {
+      width:16px; height:16px; background:var(--green); border-radius:50%;
+      animation:pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { transform:scale(1); opacity:1; }
+      50%      { transform:scale(1.5); opacity:.5; }
+    }
+
+    /* ══ TABLERO ══════════════════════════════════ */
+    .board { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; perspective:1200px; }
+    .card {
+      aspect-ratio:3/4; cursor:pointer; position:relative;
+      transform-style:preserve-3d; transition:transform .5s ease;
+      border-radius:10px; user-select:none;
+    }
+    .card.flipped { transform:rotateY(180deg); }
+    .card.matched { transform:rotateY(180deg); opacity:.45; cursor:default; }
+    .card-face {
+      position:absolute; inset:0; border-radius:10px;
+      backface-visibility:hidden; overflow:hidden;
+    }
+    .card-back {
+      background:var(--blue); display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      border:3px solid rgba(255,255,255,.1);
+    }
+    .card-back .q { font-size:56px; font-weight:900; color:rgba(255,255,255,.2); }
+    .card-back .lp {
+      position:absolute; bottom:9px; font-size:8px; font-weight:800;
+      letter-spacing:1.2px; text-transform:uppercase; color:rgba(255,255,255,.28);
+    }
+    .card:hover:not(.matched) .card-back { background:var(--blue-h); }
+    .card-front {
+      background:var(--white); border:3px solid var(--border);
+      transform:rotateY(180deg); display:flex; flex-direction:column;
+    }
+    .card-front.type-a { border-color:var(--red); }
+    .card-front.type-b { border-color:var(--green); }
+    .card-tag { height:6px; flex-shrink:0; }
+    .card-tag.a { background:var(--red); }
+    .card-tag.b { background:var(--green); }
+    .card-img {
+      flex:0 0 45%; overflow:hidden;
+      display:flex; align-items:center; justify-content:center;
+      background:var(--bg); border-bottom:1px solid var(--border);
+    }
+    .card-img img { width:100%; height:100%; object-fit:cover; }
+    .card-img .no-img { font-size:32px; color:var(--border); opacity:0.5; }
+    .card-text {
+      flex:1; display:flex; align-items:flex-start; justify-content:flex-start;
+      padding:12px; text-align:left; font-size:11px; font-weight:700;
+      color:var(--dark); line-height:1.45; overflow-y:auto;
+    }
+
+    /* ══ BOTONES ═════════════════════════════════ */
+    .btn {
+      display:inline-flex; align-items:center; gap:6px;
+      padding:9px 20px; border-radius:5px; border:none; cursor:pointer;
+      font-size:12px; font-weight:700; font-family:'Inter',sans-serif;
+      text-transform:uppercase; letter-spacing:.5px; transition:filter .15s, transform .1s;
+    }
+    .btn:hover { filter:brightness(1.1); transform:translateY(-1px); }
+    .btn-blue  { background:var(--blue); color:#fff; }
+    .btn-green { background:var(--green); color:#fff; }
+    .btn-red   { background:var(--red); color:#fff; }
+    .btn-big {
+      font-size:16px; padding:16px 36px; border-radius:8px;
+      box-shadow:0 4px 16px rgba(0,0,0,0.18);
+    }
+    .actions { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
+
+    /* ══ ADMIN — PANEL INICIO ═════════════════════ */
+    .admin-panel {
+      background:var(--white); border:1px solid var(--border); border-radius:10px;
+      padding:28px; margin-bottom:20px;
+    }
+    .admin-panel h3 { font-size:14px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; color:var(--gray); margin-bottom:16px; }
+    .admin-actions { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .game-status-label { font-size:13px; color:var(--gray); font-weight:500; }
+    .game-status-label strong { color:var(--dark); }
+
+    /* ══ EDITAR ══════════════════════════════════ */
+    .edit-header {
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:18px; padding-bottom:14px; border-bottom:2px solid var(--border);
+    }
+    .edit-header h2 { font-size:17px; font-weight:700; }
+    .edit-header p  { font-size:11px; color:var(--gray); margin-top:2px; }
+    .pair-row { background:var(--white); border:1px solid var(--border); border-radius:8px; margin-bottom:12px; overflow:hidden; }
+    .pair-row-head {
+      background:var(--bg); border-bottom:1px solid var(--border);
+      padding:8px 14px; display:flex; justify-content:space-between; align-items:center;
+      font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--gray);
+    }
+    .pair-row-body { display:grid; grid-template-columns:1fr 1fr; }
+    .pair-side { padding:14px; display:flex; flex-direction:column; gap:10px; }
+    .pair-side:first-child { border-right:1px solid var(--border); }
+    .side-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; display:flex; align-items:center; gap:6px; }
+    .badge { padding:2px 8px; border-radius:30px; font-size:10px; font-weight:700; color:#fff; }
+    .badge-a { background:var(--red); }
+    .badge-b { background:var(--green); }
+    .pair-side textarea {
+      width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:5px;
+      font-size:13px; font-family:'Inter',sans-serif; color:var(--dark); outline:none;
+      transition:border-color .15s; resize:vertical; min-height:80px; line-height:1.4;
+    }
+    .pair-side textarea:focus { border-color:var(--blue); }
+    .img-zone {
+      border:2px dashed var(--border); border-radius:8px; height:130px;
+      position:relative; overflow:hidden; cursor:pointer;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+      transition:border-color .15s, background .15s; background:var(--bg);
+    }
+    .img-zone:hover { border-color:var(--blue); background:#E3F2FD; }
+    .img-zone.loaded { border-style:solid; border-color:var(--green); }
+    .img-zone img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+    .img-zone .hov { position:absolute; inset:0; background:rgba(0,0,0,.42); display:flex; align-items:center; justify-content:center; opacity:0; transition:.15s; font-size:12px; font-weight:700; color:#fff; }
+    .img-zone:hover .hov { opacity:1; }
+    .img-zone .up-icon { font-size:24px; }
+    .img-zone .up-hint { font-size:11px; font-weight:600; color:var(--gray); }
+
+    /* ══ RANKING ══════════════════════════════════ */
+    .rank-table { width:100%; border-collapse:collapse; background:var(--white); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .rank-table thead tr { background:var(--blue); color:#fff; }
+    .rank-table th { padding:12px 16px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; text-align:left; }
+    .rank-table td { padding:13px 16px; font-size:13px; border-top:1px solid var(--border); }
+    .rank-table tbody tr:hover { background:var(--bg); }
+    .score-cell { color:var(--green); font-weight:700; font-size:15px; }
+
+    /* ══ LOADER ══════════════════════════════════ */
+    .loader { position:fixed; inset:0; background:rgba(240,242,245,.85); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; z-index:9999; }
+    .spinner { width:38px; height:38px; border:4px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin .7s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ══ MODAL VICTORIA ═══════════════════════════ */
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:999; }
+    .modal { background:var(--white); border-radius:10px; padding:34px 30px; max-width:350px; width:90%; text-align:center; box-shadow:0 8px 40px rgba(0,0,0,.2); }
+    .modal .trophy { font-size:50px; margin-bottom:10px; }
+    .modal h2 { font-size:22px; font-weight:800; margin-bottom:4px; }
+    .modal .sub { font-size:12px; color:var(--gray); margin-bottom:16px; }
+    .score-box { background:var(--blue); color:#fff; border-radius:8px; padding:14px; margin-bottom:16px; }
+    .score-box .big { font-size:40px; font-weight:800; }
+    .score-box .lbl { font-size:10px; opacity:.65; text-transform:uppercase; letter-spacing:.8px; }
+    .modal input { width:100%; padding:10px 13px; margin-bottom:12px; border:1px solid var(--border); border-radius:5px; font-size:13px; font-family:'Inter',sans-serif; color:var(--dark); outline:none; }
+    .modal input:focus { border-color:var(--blue); }
+
+    /* ══ MODAL LOGIN ADMIN ════════════════════════ */
+    .login-modal { max-width:320px; }
+    .login-modal h2 { font-size:18px; margin-bottom:6px; }
+    .login-modal p { font-size:12px; color:var(--gray); margin-bottom:18px; }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ════════════════════════════════════════ -->
+<header>
+  <div class="header-inner">
+    <div class="brand" onclick="clickBrand()">
+      <div class="brand-logo">🎮</div>
+      <div class="brand-copy">
+        <h1>Plataforma de Gamificación</h1>
+        <p>Juego de Memoria — San Isidro</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="gameStatusPill" class="status-pill pill-off">⏸ En espera</span>
+      <button id="adminBtn" onclick="toggleAdminPanel()">⚙ Admin</button>
+    </div>
+  </div>
+  <!-- Sub-nav solo visible para admin -->
+  <div id="adminNav" style="display:none; background:rgba(0,0,0,.15);">
+    <div class="header-inner">
+      <nav>
+        <div class="nav-tab active" onclick="switchTab('jugar',this)">🎯 Jugar</div>
+        <div class="nav-tab" onclick="switchTab('editar',this)">✏️ Editar Cartas</div>
+        <div class="nav-tab" onclick="switchTab('ranking',this)">🏆 Ranking</div>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<!-- ══ CONTENIDO ══════════════════════════════════════ -->
+<div class="page">
+
+  <!-- ── SECCIÓN JUGAR ── -->
+  <div id="jugar" class="section active">
+
+    <!-- Panel de control (solo admin ve esto) -->
+    <div id="adminControlPanel" style="display:none;">
+      <div class="admin-panel">
+        <h3>🛡 Panel de Control — Admin</h3>
+        <div class="admin-actions">
+          <button class="btn btn-green btn-big" id="startBtn" onclick="adminStartGame()">▶ Iniciar Partida</button>
+          <button class="btn btn-red" onclick="adminStopGame()">⏹ Detener</button>
+          <button class="btn btn-blue" onclick="adminResetGame()">🔄 Reiniciar</button>
+          <span class="game-status-label">Estado: <strong id="statusTxt">En espera</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pantalla de espera (jugadores ven esto cuando no hay partida activa) -->
+    <div id="waitingScreen" class="waiting-screen">
+      <div class="pulse"></div>
+      <div class="waiting-icon">🃏</div>
+      <h2>Esperando al organizador...</h2>
+      <p style="margin-bottom:20px;">La partida comenzará pronto. Prepárate para jugar.</p>
+
+      <div style="background:#fff; border:1px solid var(--border); border-left:4px solid var(--blue); padding:20px 24px; border-radius:8px; text-align:left; max-width:480px; width:100%;">
+        <h3 style="font-size:15px; font-weight:800; margin-bottom:12px; color:var(--dark);">📜 Reglas del Juego (Quiz BPA)</h3>
+        <ul style="font-size:13px; color:var(--dark); line-height:1.6; padding-left:20px; display:flex; flex-direction:column; gap:8px;">
+          <li><b>Objetivo:</b> Encuentra las parejas correctas entre las 🔴 Preguntas y sus respectivas 🟢 Respuestas.</li>
+          <li><b>Cómo jugar:</b> Haz clic en dos cartas para voltearlas. Si coinciden, quedarán descubiertas. Si no, se volverán a tapar.</li>
+          <li><b>Quiz:</b> Lee cuidadosamente el texto de las cartas. Unas tienen la pregunta del documento y otras las opciones (A, B, C).</li>
+          <li><b>Puntuación:</b> Ganas <b>más puntos</b> si completas el tablero en <b>menos tiempo</b> y con la <b>menor cantidad de movimientos</b> (errores) posibles.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Tablero del juego -->
+    <div id="gameArea" style="display:none;">
+      <div class="stats">
+        <div class="stat"><div class="stat-val" id="sM">0</div><div class="stat-lbl">Movimientos</div></div>
+        <div class="stat"><div class="stat-val" id="sP">0/0</div><div class="stat-lbl">Parejas</div></div>
+        <div class="stat r"><div class="stat-val" id="sT">0s</div><div class="stat-lbl">Tiempo</div></div>
+        <div class="stat g"><div class="stat-val" id="sS">—</div><div class="stat-lbl">Puntaje</div></div>
+      </div>
+      <div id="gameBoard" class="board"></div>
+    </div>
+
+  </div>
+
+  <!-- ── SECCIÓN EDITAR (solo admin) ── -->
+  <div id="editar" class="section">
+    <div class="edit-header">
+      <div><h2>Editar Cartas</h2><p>Haz clic en la zona de imagen para subir una foto</p></div>
+      <button class="btn btn-blue" onclick="addPair()">+ Agregar par</button>
+    </div>
+    <div id="pairsList"></div>
+    <div class="actions">
+      <button class="btn btn-green" onclick="savePairs()">💾 Guardar</button>
+    </div>
+  </div>
+
+  <!-- ── SECCIÓN RANKING (solo admin) ── -->
+  <div id="ranking" class="section">
+    <table class="rank-table">
+      <thead><tr><th>#</th><th>Jugador</th><th>Movimientos</th><th>Tiempo</th><th>Puntaje</th></tr></thead>
+      <tbody id="rankBody"></tbody>
+    </table>
+    <div class="actions">
+      <button class="btn btn-red" onclick="clearRanking()">🗑 Borrar Ranking</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- LOADER -->
+<div class="loader" id="loader" style="display:none;">
+  <div class="spinner"></div>
+  <span style="font-size:12px;font-weight:600;color:var(--gray);">Cargando...</span>
+</div>
+
+<!-- MODAL VICTORIA -->
+<div class="modal-bg" id="winModal" style="display:none;">
+  <div class="modal">
+    <div class="trophy">🏆</div>
+    <h2>¡Ganaste!</h2>
+    <p class="sub" id="winSub"></p>
+    <div class="score-box">
+      <div class="big" id="winBig">0</div>
+      <div class="lbl">Puntos</div>
+    </div>
+    <input id="winName" placeholder="Ingresa tu nombre...">
+    <button class="btn btn-green" style="width:100%;justify-content:center;" onclick="submitWin()">Guardar en Ranking</button>
+  </div>
+</div>
+
+<!-- MODAL LOGIN ADMIN -->
+<div class="modal-bg" id="loginModal" style="display:none;">
+  <div class="modal login-modal">
+    <div style="font-size:36px;margin-bottom:10px;">🔐</div>
+    <h2>Acceso Admin</h2>
+    <p>Ingresa la contraseña para administrar el juego</p>
+    <input type="password" id="adminPwd" placeholder="Contraseña..." onkeydown="if(event.key==='Enter')doLogin()">
+    <div id="loginErr" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none;">Contraseña incorrecta</div>
+    <button class="btn btn-blue" style="width:100%;justify-content:center;" onclick="doLogin()">Ingresar</button>
+    <br><br>
+    <button class="btn" style="width:100%;justify-content:center;background:var(--bg);color:var(--gray);" onclick="closeLogin()">Cancelar</button>
+  </div>
+</div>
+
+<script>
+  // ═══════════════════════════════════════════════════
+  //  PLATAFORMA DE GAMIFICACIÓN
+  //  Admin: contraseña "admin123" (cámbiala aquí abajo)
+  // ═══════════════════════════════════════════════════
+
+  const ADMIN_PASSWORD = 'admin123';  // ← Cambia esta contraseña
+
+  let cards   = [];
+  let ranking = [];
+  let gameCards = [], flipped = [];
+  let moves = 0, matched = 0, seconds = 0, winScore = 0;
+  let timer = null, playing = false;
+  let isAdmin = false;
+  let gameActive = false;   // ¿hay partida iniciada por el admin?
+
+  // ── INIT ──────────────────────────────────────────
+  (function () {
+    // 🔥 FORZAR BORRADO para limpiar basura anterior:
+    localStorage.removeItem('gam_cards');
+
+    try { cards   = JSON.parse(localStorage.getItem('gam_cards') || 'null'); } catch(e){}
+    try { ranking = JSON.parse(localStorage.getItem('gam_ranking') || '[]'); } catch(e){}
+    if (!cards) cards = [
+      {
+        a: "1. Teniendo en cuenta las actividades productivas de las familias participantes del proyecto...\n¿Para qué deben implementar las buenas prácticas agrícolas en sus unidades productivas?",
+        b: "A. Identificar los subproductos generados en cada etapa de la producción.\n\nB. Mitigar las afectaciones en la salud de los trabajadores, asegurar la inocuidad de los alimentos y proteger el ambiente.\n\nC. Mantener buenas relaciones con las empresas que les compran las cosechas.",
+        imgA:'', imgB:''
+      },
+      {
+        a: "2. Con el fin de obtener productos sanos y seguros para los consumidores...\n¿qué deben hacer las familias productoras de la Junta de Acción Comunal de San Isidro?",
+        b: "A) Capacitarse sobre higiene y control de salud... llevar registros actualizados desde la planificación hasta la poscosecha.\n\nB) No tener en cuenta las recomendaciones de la secretaría de agricultura...\n\nC) Conversar con los vecinos a ver lo que hacen en sus cultivos.",
+        imgA:'', imgB:''
+      },
+    ];
+    renderPairs();
+    showJugadorView();
+  })();
+
+  // ── VISTA JUGADOR (sin partida activa) ────────────
+  function showJugadorView() {
+    document.getElementById('waitingScreen').style.display = gameActive ? 'none' : 'flex';
+    document.getElementById('gameArea').style.display      = gameActive ? 'block' : 'none';
+    if (gameActive) buildBoard();
+  }
+
+  // ── ADMIN LOGIN ───────────────────────────────────
+  let brandClicks = 0, brandTimer = null;
+  function clickBrand() {
+    brandClicks++;
+    clearTimeout(brandTimer);
+    brandTimer = setTimeout(()=>{ brandClicks=0; }, 800);
+    if (brandClicks >= 3) { brandClicks=0; openLogin(); }
+  }
+
+  function openLogin() {
+    document.getElementById('loginModal').style.display = 'flex';
+    document.getElementById('adminPwd').value = '';
+    document.getElementById('loginErr').style.display = 'none';
+    setTimeout(()=>document.getElementById('adminPwd').focus(), 100);
+  }
+  function closeLogin() { document.getElementById('loginModal').style.display = 'none'; }
+
+  function doLogin() {
+    const pwd = document.getElementById('adminPwd').value;
+    if (pwd === ADMIN_PASSWORD) {
+      isAdmin = true;
+      closeLogin();
+      activateAdminMode();
+    } else {
+      document.getElementById('loginErr').style.display = 'block';
+      document.getElementById('adminPwd').value = '';
+      document.getElementById('adminPwd').focus();
+    }
+  }
+
+  function toggleAdminPanel() {
+    if (!isAdmin) { openLogin(); return; }
+    // Si ya es admin, cerrar sesión
+    isAdmin = false;
+    deactivateAdminMode();
+  }
+
+  function activateAdminMode() {
+    isAdmin = true;
+    document.getElementById('adminBtn').innerText = '🔓 Cerrar sesión';
+    document.getElementById('adminBtn').classList.add('active');
+    document.getElementById('adminNav').style.display = 'block';
+    document.getElementById('adminControlPanel').style.display = 'block';
+    renderRanking();
+  }
+
+  function deactivateAdminMode() {
+    isAdmin = false;
+    document.getElementById('adminBtn').innerText = '⚙ Admin';
+    document.getElementById('adminBtn').classList.remove('active');
+    document.getElementById('adminNav').style.display = 'none';
+    document.getElementById('adminControlPanel').style.display = 'none';
+    // Forzar vista jugar
+    switchTab('jugar', document.querySelectorAll('.nav-tab')[0]);
+  }
+
+  // ── TABS (solo admin) ─────────────────────────────
+  function switchTab(id, el) {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById(id).classList.add('active');
+    if (id === 'ranking') renderRanking();
+  }
+
+  // ── CONTROL ADMIN ─────────────────────────────────
+  function adminStartGame() {
+    if (!cards.length) { alert('No hay cartas configuradas. Ve a Editar Cartas.'); return; }
+    gameActive = true;
+    setStatusPill(true);
+    document.getElementById('startBtn').innerText = '▶ Reiniciar Partida';
+    buildBoard();
+    document.getElementById('waitingScreen').style.display = 'none';
+    document.getElementById('gameArea').style.display = 'block';
+  }
+
+  function adminStopGame() {
+    clearInterval(timer);
+    gameActive = false; playing = false;
+    setStatusPill(false);
+    document.getElementById('startBtn').innerText = '▶ Iniciar Partida';
+    document.getElementById('waitingScreen').style.display = 'flex';
+    document.getElementById('gameArea').style.display = 'none';
+    document.getElementById('statusTxt').innerText = 'En espera';
+  }
+
+  function adminResetGame() {
+    if (!gameActive) { adminStartGame(); return; }
+    clearInterval(timer);
+    buildBoard();
+  }
+
+  function setStatusPill(on) {
+    const p = document.getElementById('gameStatusPill');
+    p.className = 'status-pill ' + (on ? 'pill-on' : 'pill-off');
+    p.innerText  = on ? '▶ Partida activa' : '⏸ En espera';
+    document.getElementById('statusTxt').innerText = on ? '✅ Activa' : '⏸ En espera';
+  }
+
+  // ── CONSTRUCCIÓN DEL TABLERO ──────────────────────
+  function buildBoard() {
+    clearInterval(timer);
+    moves=0; matched=0; seconds=0; playing=true; flipped=[];
+    document.getElementById('sM').innerText = 0;
+    document.getElementById('sT').innerText = '0s';
+    document.getElementById('sP').innerText = '0/'+cards.length;
+    document.getElementById('sS').innerText = '—';
+
+    gameCards = [];
+    cards.forEach((p, i) => {
+      gameCards.push({ id:i, side:'A', text:p.a, img:p.imgA });
+      gameCards.push({ id:i, side:'B', text:p.b, img:p.imgB });
+    });
+    shuffle(gameCards);
+
+    const board = document.getElementById('gameBoard');
+    board.innerHTML = '';
+    gameCards.forEach(c => {
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.innerHTML = `
+        <div class="card-face card-back">
+          <div class="q">?</div>
+          <div class="lp">Plataforma</div>
+        </div>
+        <div class="card-face card-front type-${c.side.toLowerCase()}">
+          <div class="card-tag ${c.side.toLowerCase()}"></div>
+          <div class="card-img">
+            ${c.img ? `<img src="${c.img}" alt="">` : '<div class="no-img">🖼️</div>'}
+          </div>
+          <div class="card-text">${c.text || ''}</div>
+        </div>`;
+      el.onclick = () => flipCard(el, c);
+      board.appendChild(el);
+    });
+
+    timer = setInterval(() => {
+      if (playing) { seconds++; document.getElementById('sT').innerText = seconds+'s'; }
+    }, 1000);
+  }
+
+  function flipCard(el, data) {
+    if (!playing || el.classList.contains('flipped') || el.classList.contains('matched') || flipped.length >= 2) return;
+    el.classList.add('flipped');
+    flipped.push({ el, data });
+    if (flipped.length === 2) { moves++; document.getElementById('sM').innerText=moves; setTimeout(checkMatch, 900); }
+  }
+
+  function checkMatch() {
+    const [c1,c2] = flipped;
+    if (c1.data.id === c2.data.id && c1.data.side !== c2.data.side) {
+      c1.el.classList.remove('flipped'); c1.el.classList.add('matched');
+      c2.el.classList.remove('flipped'); c2.el.classList.add('matched');
+      matched++;
+      document.getElementById('sP').innerText = matched+'/'+cards.length;
+      if (matched === cards.length) onWin();
+    } else {
+      setTimeout(()=>{ c1.el.classList.remove('flipped'); c2.el.classList.remove('flipped'); }, 200);
+    }
+    flipped = [];
+  }
+
+  function onWin() {
+    playing=false; clearInterval(timer);
+    winScore = Math.max(1000 - moves*15 - seconds*2, 50);
+    document.getElementById('winBig').innerText = winScore;
+    document.getElementById('winSub').innerText = `${moves} movimientos · ${seconds} segundos`;
+    document.getElementById('sS').innerText = winScore;
+    document.getElementById('winModal').style.display = 'flex';
+  }
+
+  function submitWin() {
+    const n = document.getElementById('winName').value.trim() || 'Anónimo';
+    ranking.push({ nombre:n, movimientos:moves, segundos:seconds, puntaje:winScore });
+    ranking.sort((a,b) => b.puntaje-a.puntaje || a.segundos-b.segundos);
+    if (ranking.length > 30) ranking.length = 30;
+    localStorage.setItem('gam_ranking', JSON.stringify(ranking));
+    document.getElementById('winModal').style.display = 'none';
+    document.getElementById('winName').value = '';
+    // Reiniciar tablero para siguiente jugador
+    buildBoard();
+  }
+
+  function shuffle(a) {
+    for (let i=a.length-1;i>0;i--) {
+      const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];
+    }
+  }
+
+  // ── EDITAR CARTAS ──────────────────────────────────
+  function renderPairs() {
+    const list = document.getElementById('pairsList');
+    list.innerHTML = '';
+    if (!cards.length) {
+      list.innerHTML = `<p style="text-align:center;padding:40px;color:var(--gray);">Sin cartas. Agrega un par.</p>`;
+      return;
+    }
+    cards.forEach((p, i) => list.appendChild(buildRow(p, i)));
+  }
+
+  function buildRow(pair, idx) {
+    const wrap = document.createElement('div');
+    wrap.className = 'pair-row';
+    const head = document.createElement('div');
+    head.className = 'pair-row-head';
+    head.innerHTML = `<span>Par ${idx+1}</span>`;
+    const del = document.createElement('button');
+    del.className='btn btn-red'; del.style.cssText='padding:4px 12px;font-size:10px;';
+    del.innerText='Eliminar';
+    del.onclick=()=>{ cards.splice(idx,1); renderPairs(); };
+    head.appendChild(del);
+    const body = document.createElement('div');
+    body.className = 'pair-row-body';
+    body.appendChild(buildSide(pair, idx, 'A'));
+    body.appendChild(buildSide(pair, idx, 'B'));
+    wrap.append(head, body);
+    return wrap;
+  }
+
+  function buildSide(pair, idx, side) {
+    const field    = side==='A' ? 'a'    : 'b';
+    const imgField = side==='A' ? 'imgA' : 'imgB';
+    const div = document.createElement('div');
+    div.className = 'pair-side';
+    const lbl = document.createElement('div');
+    lbl.className = 'side-label';
+    lbl.innerHTML = `<span class="badge badge-${side.toLowerCase()}">Carta ${side}</span>
+      <span style="color:var(--gray);font-size:10px;">${side==='A'?'Pregunta':'Respuesta'}</span>`;
+    const inp = document.createElement('textarea');
+    inp.placeholder = side==='A' ? 'Ej: ¿Qué son las BPA?' : 'Ej: Buenas Prácticas Agrícolas';
+    inp.value = pair[field];
+    inp.oninput = e => cards[idx][field] = e.target.value;
+    const zone = buildImgZone(pair[imgField], url => { cards[idx][imgField] = url; });
+    div.append(lbl, inp, zone);
+    return div;
+  }
+
+  function buildImgZone(existingUrl, onUpload) {
+    const zone = document.createElement('div');
+    zone.className = `img-zone${existingUrl ? ' loaded' : ''}`;
+    if (existingUrl) {
+      zone.innerHTML = `<img src="${existingUrl}" alt=""><div class="hov">📷 Cambiar imagen</div>`;
+    } else {
+      zone.innerHTML = `<div class="up-icon">📷</div><div class="up-hint">Clic para subir imagen</div>`;
+    }
+    zone.onclick = () => {
+      const fi = document.createElement('input');
+      fi.type='file'; fi.accept='image/*';
+      fi.onchange = () => {
+        const file = fi.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX=480; let [w,h]=[img.width, img.height];
+            if (w>h&&w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+            else if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}
+            canvas.width=w; canvas.height=h;
+            canvas.getContext('2d').drawImage(img,0,0,w,h);
+            const url=canvas.toDataURL('image/jpeg',.82);
+            onUpload(url);
+            zone.className='img-zone loaded';
+            zone.innerHTML=`<img src="${url}" alt=""><div class="hov">📷 Cambiar imagen</div>`;
+          };
+          img.src=e.target.result;
+        };
+        reader.readAsDataURL(file);
+      };
+      fi.click();
+    };
+    return zone;
+  }
+
+  function addPair() {
+    cards.push({a:'',b:'',imgA:'',imgB:''});
+    renderPairs();
+    setTimeout(()=>window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}),60);
+  }
+
+  function savePairs() {
+    try {
+      localStorage.setItem('gam_cards', JSON.stringify(cards));
+      alert('✅ Cartas guardadas correctamente.');
+    } catch { alert('❌ Imágenes muy pesadas. Usa fotos más pequeñas.'); }
+  }
+
+  // ── RANKING (solo admin) ───────────────────────────
+  function renderRanking() {
+    const body = document.getElementById('rankBody');
+    if (!ranking.length) {
+      body.innerHTML=`<tr><td colspan="5" style="text-align:center;padding:36px;color:var(--gray);">¡Aún no hay resultados!</td></tr>`;
+      return;
+    }
+    const medals=['🥇','🥈','🥉'];
+    body.innerHTML = ranking.map((r,i)=>`
+      <tr>
+        <td style="font-weight:700;">${medals[i]||i+1}</td>
+        <td><strong>${r.nombre}</strong></td>
+        <td>${r.movimientos}</td>
+        <td>${r.segundos}s</td>
+        <td class="score-cell">${r.puntaje}</td>
+      </tr>`).join('');
+  }
+
+  function clearRanking() {
+    if (!confirm('¿Borrar todo el ranking?')) return;
+    ranking=[]; localStorage.removeItem('gam_ranking'); renderRanking();
+  }
+</script>
+</body>
+</html>
