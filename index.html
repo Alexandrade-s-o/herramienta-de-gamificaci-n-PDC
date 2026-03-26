@@ -389,7 +389,7 @@
   // ── INICIALIZAR SUPABASE ──────────────────────────
   const supabaseUrl = 'https://blejocgxhtpbohcsxnbo.supabase.co';
   const supabaseKey = 'sb_publishable_rr7y5gxpbUbVm8q5AX4gtA_p9VNgGS5';
-  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+  const sb = window.supabase.createClient(supabaseUrl, supabaseKey);
 
   let cards   = [];
   let ranking = [];
@@ -403,7 +403,7 @@
   async function initDb() {
     try {
       // 1. Obtener estado inicial (cartas y si la partida está activa)
-      const { data: st, error: stErr } = await supabase.from('game_state').select('*').eq('id', 1).single();
+      const { data: st, error: stErr } = await sb.from('game_state').select('*').eq('id', 1).single();
       if (stErr) console.warn("Supabase (game_state):", stErr.message);
       if (st) {
         gameActive = (st.status === 'playing');
@@ -424,7 +424,7 @@
     
     // Suscribirse a cambios en tiempo real
     try {
-      supabase
+      sb
         .channel('public:game_state')
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state' }, payload => {
           const newData = payload.new;
@@ -454,7 +454,7 @@
 
   async function fetchRanking() {
     try {
-      const { data, error } = await supabase.from('ranking').select('*').order('puntaje', { ascending: false }).order('segundos', { ascending: true }).limit(30);
+      const { data, error } = await sb.from('ranking').select('*').order('puntaje', { ascending: false }).order('segundos', { ascending: true }).limit(30);
       if (error) console.warn("Supabase (ranking):", error.message);
       if (data) ranking = data;
       if (isAdmin) renderRanking();
@@ -536,13 +536,13 @@
   // ── CONTROL ADMIN ─────────────────────────────────
   async function adminStartGame() {
     if (!cards.length) { alert('No hay cartas configuradas. Ve a Editar Cartas.'); return; }
-    await supabase.from('game_state').update({ status: 'playing', cards: cards }).eq('id', 1);
+    await sb.from('game_state').update({ status: 'playing', cards: cards }).eq('id', 1);
   }
 
   async function adminStopGame() {
     clearInterval(timer);
     playing = false;
-    await supabase.from('game_state').update({ status: 'waiting' }).eq('id', 1);
+    await sb.from('game_state').update({ status: 'waiting' }).eq('id', 1);
   }
 
   function adminResetGame() {
@@ -638,7 +638,7 @@
     document.getElementById('winModal').style.display = 'none';
     document.getElementById('winName').value = '';
     
-    await supabase.from('ranking').insert([finalScore]);
+    await sb.from('ranking').insert([finalScore]);
     await fetchRanking(); // recargar
     
     // Reiniciar tablero para siguiente jugador
@@ -744,7 +744,7 @@
 
   async function savePairs() {
     try {
-      await supabase.from('game_state').update({ cards: cards }).eq('id', 1);
+      await sb.from('game_state').update({ cards: cards }).eq('id', 1);
       alert('✅ Cartas guardadas en la nube.');
     } catch { alert('❌ Error al guardar.'); }
   }
@@ -769,7 +769,7 @@
 
   async function clearRanking() {
     if (!confirm('¿Borrar todo el ranking? Esta acción no se puede deshacer.')) return;
-    const { error } = await supabase.from('ranking').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+    const { error } = await sb.from('ranking').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
     ranking=[];
     renderRanking();
   }
