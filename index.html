@@ -402,8 +402,8 @@
   // ── INIT ──────────────────────────────────────────
   async function initDb() {
     try {
-      // 1. Obtener estado inicial (cartas y si la partida está activa)
-      const { data: st, error: stErr } = await sb.from('game_state').select('*').eq('id', 1).single();
+      // 1. Obtener estado inicial (usamos maybeSingle() para no lanzar error 406 si está vacía)
+      const { data: st, error: stErr } = await sb.from('game_state').select('*').eq('id', 1).maybeSingle();
       if (stErr) console.warn("Supabase (game_state):", stErr.message);
       if (st) {
         gameActive = (st.status === 'playing');
@@ -426,7 +426,7 @@
     try {
       sb
         .channel('public:game_state')
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_state' }, payload => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_state' }, payload => {
           const newData = payload.new;
           cards = newData.cards || cards;
           const newActive = (newData.status === 'playing');
@@ -536,13 +536,13 @@
   // ── CONTROL ADMIN ─────────────────────────────────
   async function adminStartGame() {
     if (!cards.length) { alert('No hay cartas configuradas. Ve a Editar Cartas.'); return; }
-    await sb.from('game_state').update({ status: 'playing', cards: cards }).eq('id', 1);
+    await sb.from('game_state').upsert({ id: 1, status: 'playing', cards: cards });
   }
 
   async function adminStopGame() {
     clearInterval(timer);
     playing = false;
-    await sb.from('game_state').update({ status: 'waiting' }).eq('id', 1);
+    await sb.from('game_state').upsert({ id: 1, status: 'waiting', cards: cards });
   }
 
   function adminResetGame() {
@@ -744,7 +744,7 @@
 
   async function savePairs() {
     try {
-      await sb.from('game_state').update({ cards: cards }).eq('id', 1);
+      await sb.from('game_state').upsert({ id: 1, status: gameActive?'playing':'waiting', cards: cards });
       alert('✅ Cartas guardadas en la nube.');
     } catch { alert('❌ Error al guardar.'); }
   }
